@@ -1,1 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tra cứu Tuyến đường Bình Dương</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #27ae60;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-color: #2d3436;
+            --border-color: #dfe6e9;
+            --highlight-color: #ffeaa7;
+        }
 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1280px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 4px solid var(--accent-color);
+        }
+
+        header h1 {
+            color: var(--primary-color);
+            font-size: 26px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #636e72;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+        .status-loading { background: #ffeaa7; color: #d35400; }
+        .status-success { background: #dff9fb; color: #0984e3; }
+        .status-error { background: #fab1a0; color: #d63031; }
+
+        .search-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+        }
+
+        .search-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--primary-color);
+        }
+
+        .form-group input {
+            padding: 12px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 8px rgba(39, 174, 96, 0.2);
+            background: #fff;
+        }
+
+        .result-meta {
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            max-height: 650px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px;
+            font-weight: 600;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+            background: white;
+        }
+
+        tr:nth-child(even) td {
+            background-color: #fbfbfc;
+        }
+
+        tr:hover td {
+            background-color: #f1f2f6;
+        }
+
+        .no-result {
+            text-align: center;
+            padding: 40px;
+            color: #d63031;
+            font-weight: 600;
+            background: #fff5f5;
+            border: 2px dashed #ff7675;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            header h1 { font-size: 20px; }
+            .search-box { grid-template-columns: 1fr; }
+            th, td { padding: 10px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>TRA CỨU TUYẾN ĐƯỜNG BÌNH DƯƠNG</h1>
+        <p>Phục vụ công tác quản lý, duy tu và giám sát hạ tầng chiếu sáng</p>
+        <div id="dataStatus" class="status-badge status-loading">Đang tải dữ liệu từ máy chủ...</div>
+    </header>
+
+    <div class="search-container">
+        <div class="search-box">
+            <div class="form-group">
+                <label>Tên Tuyến Đường (Viết tắt hoặc có dấu)</label>
+                <input type="text" id="searchStreet" placeholder="Ví dụ: ntmk hoặc Nguyễn Thị Minh Khai...">
+            </div>
+            <div class="form-group">
+                <label>Phường / Xã / Khu vực</label>
+                <input type="text" id="searchWard" placeholder="Ví dụ: Thủ Dầu Một, Chánh Nghĩa...">
+            </div>
+            <div class="form-group">
+                <label>Mã PE</label>
+                <input type="text" id="searchPE" placeholder="Ví dụ: Nhập mã PE cần tìm...">
+            </div>
+        </div>
+    </div>
+
+    <div class="result-meta" id="resultMeta" style="display: none;">
+        <span id="rowCount">Tìm thấy 0 tuyến đường</span>
+        <button onclick="clearSearch()" style="background: none; border: none; color: #0984e3; cursor: pointer; font-size: 13px; text-decoration: underline;">Xóa bộ lọc</button>
+    </div>
+
+    <div id="resultArea">
+        <div class="table-wrapper" id="tableContainer" style="display: none;">
+            <table id="resultTable">
+                <thead id="tableHeader"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyMessage" class="no-result" style="display: none;">
+            Tuyến đường không tồn tại hoặc không thuộc phạm vi quản lý.
+        </div>
+    </div>
+</div>
+
+<script>
+    // Link dữ liệu đã được tối ưu sang định dạng TSV (Tab Separated Values)
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQlTjfyVQOY_NbkgviXPLWv8rMG3pt0k_WFy0LJvTewXYbpsbNzPZ5aSQKniYFw9c6Yb7SsMyvspcKt/pub?gid=195844642&single=true&output=tsv';
+    
+    let rawData = [];
+    let headers = [];
+
+    // Chuẩn hóa tiếng Việt
+    function removeVietnameseTones(str) {
+        if (!str) return '';
+        str = str.toLowerCase();
+        str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+        str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+        str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+        str = str.replace(/ò|ó|ọ|ỏ|ã|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+        str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+        str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+        str = str.replace(/đ/g, "d");
+        return str.trim();
+    }
+
+    // Tạo ký tự viết tắt (Nguyễn Văn Cừ -> nvc)
+    function getInitials(str) {
+        return str.split(/\s+/).map(word => word[0]).join('').toLowerCase();
+    }
+
+    // Xóa bộ lọc
+    function clearSearch() {
+        document.getElementById('searchStreet').value = '';
+        document.getElementById('searchWard').value = '';
+        document.getElementById('searchPE').value = '';
+        performSearch();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        fetch(csvUrl)
+            .then(response => {
+                if (!response.ok) throw new Error('Không thể tải dữ liệu');
+                return response.text();
+            })
+            .then(text => {
+                const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== "");
+                const parsedData = lines.map(line => line.split('\t'));
+
+                if (parsedData.length > 0) {
+                    headers = parsedData[0];
+                    rawData = parsedData.slice(1).map(row => {
+                        let item = {};
+                        headers.forEach((h, i) => item[h] = row[i] || '');
+                        return item;
+                    });
+
+                    // Render tiêu đề bảng
+                    document.getElementById('tableHeader').innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+
+                    const status = document.getElementById('dataStatus');
+                    status.innerText = `Đã kết nối: ${rawData.length} tuyến đường`;
+                    status.className = 'status-badge status-success';
+                    document.getElementById('resultMeta').style.display = 'flex';
+
+                    // Lắng nghe sự kiện gõ phím
+                    ['searchStreet', 'searchWard', 'searchPE'].forEach(id => {
+                        document.getElementById(id).addEventListener('input', performSearch);
+                    });
+
+                    performSearch();
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                const status = document.getElementById('dataStatus');
+                status.innerText = 'Lỗi kết nối dữ liệu! Kiểm tra link chia sẻ Google Sheets.';
+                status.className = 'status-badge status-error';
+            });
+    });
+
+    function performSearch() {
+        const qStreet = removeVietnameseTones(document.getElementById('searchStreet').value);
+        const qWard = removeVietnameseTones(document.getElementById('searchWard').value);
+        const qPE = removeVietnameseTones(document.getElementById('searchPE').value);
+
+        // Tự động tìm cột dựa trên tiêu đề
+        const colStreet = headers.find(h => {
+            const hC = removeVietnameseTones(h);
+            return hC.includes('duong') || hC.includes('tuyen');
+        }) || headers[1];
+        
+        const colWard = headers.find(h => {
+            const hC = removeVietnameseTones(h);
+            return hC.includes('phuong') || hC.includes('xa') || hC.includes('khu vuc');
+        }) || headers[2];
+
+        // Tự động nhận diện cột Mã PE từ Google Sheets
+        const colPE = headers.find(h => {
+            const hC = removeVietnameseTones(h);
+            return hC.includes('ma pe') || hC.includes('pe') || hC.includes('ma');
+        }) || headers[headers.length - 1];
+
+        const filtered = rawData.filter(item => {
+            const valStreet = item[colStreet] || '';
+            const valWard = item[colWard] || '';
+            const valPE = item[colPE] || '';
+
+            const matchStreet = qStreet === '' || 
+                               removeVietnameseTones(valStreet).includes(qStreet) || 
+                               getInitials(removeVietnameseTones(valStreet)).includes(qStreet);
+            
+            const matchWard = qWard === '' || removeVietnameseTones(valWard).includes(qWard);
+            
+            const matchPE = qPE === '' || 
+                            removeVietnameseTones(valPE).includes(qPE) ||
+                            getInitials(removeVietnameseTones(valPE)).includes(qPE);
+
+            return matchStreet && matchWard && matchPE;
+        });
+
+        renderTable(filtered);
+    }
+
+    function renderTable(data) {
+        const tableContainer = document.getElementById('tableContainer');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const tableBody = document.getElementById('tableBody');
+        const rowCount = document.getElementById('rowCount');
+
+        rowCount.innerText = `Tìm thấy ${data.length} tuyến đường`;
+
+        if (data.length === 0) {
+            tableContainer.style.display = 'none';
+            emptyMessage.style.display = 'block';
+        } else {
+            emptyMessage.style.display = 'none';
+            tableContainer.style.display = 'block';
+
+            let bodyHtml = '';
+            data.forEach(item => {
+                bodyHtml += '<tr>';
+                headers.forEach(h => {
+                    bodyHtml += `<td>${item[h]}</td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+            tableBody.innerHTML = bodyHtml;
+        }
+    }
+</script>
+
+</body>
+</html>
