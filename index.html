@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGIS Quản Lý CVCX - Tích Hợp Dự Báo Mưa GFS</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Khung điều khiển thời gian GFS */
+        #time-control-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 630px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #time-slider {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        .status-safe { background-color: #2ecc71; }
+        .status-warning { background-color: #e67e22; }
+        .status-danger { background-color: #e74c3c; }
+
+        #btn-play {
+            padding: 6px 18px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            min-width: 75px;
+        }
+        #btn-play:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <!-- Bản đồ WebGIS -->
+    <div id="map"></div>
+
+    <!-- Giao diện điều khiển dòng thời gian dự báo -->
+    <div id="time-control-panel">
+        <div class="info-row">
+            <span>Mô hình: <span style="color:#007bff;">GFS Seamless (NOAA)</span></span>
+            <span id="current-time-text">Đang kết nối API Google Drive...</span>
+            <span id="rain-status" class="badge status-safe">Đang tải</span>
+        </div>
+        
+        <div class="slider-row">
+            <button id="btn-play" disabled>Play</button>
+            <input type="range" id="time-slider" min="0" max="0" value="0" disabled>
+        </div>
+        
+        <div class="info-row" style="font-size: 11px; color: #7f8c8d; font-weight: normal;">
+            <span>Thời điểm bắt đầu (fh=0)</span>
+            <span id="rain-value-text">Lượng mưa dự báo: -- mm</span>
+            <span id="total-frames-text">Hạn dự báo: -- bước</span>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // 1. KHỞI TẠO BẢN ĐỒ (Định vị chính xác vào khu vực TP. Thủ Đức/Quận 9 theo yêu cầu)
+        const map = L.map('map').setView([10.8370, 106.7567], 14);
+
+        // Thêm bản đồ nền OpenStreetMap sạch
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Giả lập cơ sở dữ liệu điểm Cây Xanh/Công viên của hệ thống quản lý công viên cây xanh
+        const sampleParks = [
+            { name: "Công viên Khu công nghệ cao", coords: [10.8450, 106.7950] },
+            { name: "Công viên Hiệp Phú", coords: [10.8480, 106.7750] },
+            { name: "Khu vực cây xanh rạch Thủ Đức", coords: [10.8370, 106.7567] }
+        ];
+
+        const markerLayers = [];
+        sampleParks.forEach(park => {
+            const marker = L.circleMarker(park.coords, {
+                radius: 11,
+                fillColor: "#2ecc71",
+                color: "#ffffff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.85
+            }).addTo(map).bindPopup(`<b>${park.name}</b><br>Trạng thái nền: Bình thường`);
+            
+            markerLayers.push(marker);
+        });
+
+        // 2. KẾT NỐI API GOOGLE APPS SCRIPT CỦA BẠN
+        const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbycLonxIbN7MUyNxEfsbZLiphvHsxkMGeaZTSedRZvIx0BBRQhj3CW2jeGv2YeOgKD7/exec"; 
+        
+        let weatherData = null;
+        let isPlaying = false;
+        let playInterval = null;
+
+        const slider = document.getElementById('time-slider');
+        const timeText = document.getElementById('current-time-text');
+        const rainText = document.getElementById('rain-value-text');
+        const rainStatus = document.getElementById('rain-status');
+        const btnPlay = document.getElementById('btn-play');
+        const totalFramesText = document.getElementById('total-frames-text');
+
+        // Hàm gọi API và nạp chuỗi thời gian dữ liệu
+        function initWeatherData() {
+            fetch(GOOGLE_API_URL)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Không thể kết nối dịch vụ Web App.");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        timeText.innerText = "Lỗi: Chưa sinh được file json trên Drive";
+                        rainStatus.innerText = "Lỗi Drive";
+                        rainStatus.className = "badge status-danger";
+                        return;
+                    }
+                    
+                    weatherData = data.forecast;
+                    const totalSteps = weatherData.time.length;
+                    
+                    // Mở khóa các nút điều khiển trên giao diện
+                    slider.disabled = false;
+                    btnPlay.disabled = false;
+                    
+                    // Tự động cấu hình slider khớp hoàn toàn với tổng số khung giờ thực tế nhận được
+                    slider.max = totalSteps - 1; 
+                    totalFramesText.innerText = `Hạn dự báo: +${totalSteps} bước giờ`;
+                    
+                    // Cập nhật hiển thị cho khung giờ đầu tiên (fh=0)
+                    updateWeatherDisplay(0);
+                })
+                .catch(error => {
+                    console.error("Chi tiết lỗi API:", error);
+                    timeText.innerText = "Lỗi kết nối API Google Drive hoặc lỗi CORS";
+                    rainStatus.innerText = "Mất kết nối";
+                    rainStatus.className = "badge status-danger";
+                });
+        }
+
+        // 3. ĐIỀU KHIỂN ĐỘNG - CẬP NHẬT TRẠNG THÁI GIS THEO TỪNG BƯỚC THỜI GIAN
+        function updateWeatherDisplay(index) {
+            if (!weatherData) return;
+
+            const timeStr = weatherData.time[index];
+            const rainValue = weatherData.precipitation[index];
+
+            // Định dạng ngày giờ chuẩn hiển thị trực quan
+            const dateObj = new Date(timeStr);
+            timeText.innerText = `Thời gian: ${dateObj.toLocaleString('vi-VN')}`;
+            rainText.innerText = `Lượng mưa: ${rainValue} mm/h`;
+
+            // Thuật toán so khớp dữ liệu: Cảnh báo sớm rủi ro dông lốc, ngập úng dựa trên lượng mưa
+            if (rainValue === 0) {
+                rainStatus.innerText = "Không mưa";
+                rainStatus.className = "badge status-safe";
+                updateLayerColors("#2ecc71", "Bình thường - Không có mưa.");
+            } else if (rainValue > 0 && rainValue <= 6) {
+                rainStatus.innerText = "Mưa nhỏ";
+                rainStatus.className = "badge status-warning";
+                updateLayerColors("#e67e22", `Mưa nhỏ (${rainValue} mm/h). Cần theo dõi hiện trạng cây xanh.`);
+            } else {
+                // Khi lượng mưa vượt ngưỡng, phát báo động đỏ trên WebGIS
+                rainStatus.innerText = "MƯA LỚN - NGUY CƠ DÔNG LỐC";
+                rainStatus.className = "badge status-danger";
+                updateLayerColors("#e74c3c", `CẢNH BÁO NGUY HIỂM: Mưa lớn (${rainValue} mm/h). Nguy cơ dông lốc làm gãy đổ cây cổ thụ!`);
+            }
+        }
+
+        // Cập nhật trực tiếp màu sắc trạng thái các đối tượng GIS trên bản đồ nền
+        function updateLayerColors(color, statusDescription) {
+            markerLayers.forEach((marker, i) => {
+                marker.setStyle({ fillColor: color });
+                marker.setPopupContent(`<b>${sampleParks[i].name}</b><br><b>Trạng thái:</b> ${statusDescription}`);
+            });
+        }
+
+        // Lắng nghe sự kiện kéo thủ công của người dùng trên thanh trượt
+        slider.addEventListener('input', function() {
+            updateWeatherDisplay(parseInt(this.value));
+        });
+
+        // 4. BỘ PHÁT TỰ ĐỘNG (PLAYBACK ANIMATION ENGINE)
+        btnPlay.addEventListener('click', function() {
+            if (isPlaying) {
+                clearInterval(playInterval);
+                btnPlay.innerText = "Play";
+                isPlaying = false;
+            } else {
+                btnPlay.innerText = "Pause";
+                isPlaying = true;
+                
+                playInterval = setInterval(() => {
+                    let currentValue = parseInt(slider.value);
+                    let maxBounds = parseInt(slider.max);
+                    
+                    if (currentValue >= maxBounds) {
+                        currentValue = 0; // Tự động lặp lại vòng lặp khi chạy hết chuỗi thời gian
+                    } else {
+                        currentValue++;
+                    }
+                    
+                    slider.value = currentValue;
+                    updateWeatherDisplay(currentValue);
+                }, 900); // Tốc độ quét: 900 mili-giây nhảy sang một khung giờ tiếp theo
+            }
+        });
+
+        // Kích hoạt chuỗi nạp dữ liệu khi khởi động trang web
+        initWeatherData();
+    </script>
+</body>
+</html>
