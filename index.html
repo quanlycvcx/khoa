@@ -113,10 +113,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. KHỞI TẠO BẢN ĐỒ (Định vị chính xác vào khu vực TP. Thủ Đức/Quận 9 theo yêu cầu)
+        // 1. KHỞI TẠO BẢN ĐỒ (Định vị chính xác vào khu vực TP. Thủ Đức/Quận 9)
         const map = L.map('map').setView([10.8370, 106.7567], 14);
 
-        // Thêm bản đồ nền OpenStreetMap sạch
+        // Thêm bản đồ nền OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
@@ -142,7 +142,7 @@
             markerLayers.push(marker);
         });
 
-        // 2. KẾT NỐI API GOOGLE APPS SCRIPT CỦA BẠN
+        // 2. KẾT NỐI API GOOGLE APPS SCRIPT CỦA BẠN (Đã cập nhật URL chính xác)
         const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbycLonxIbN7MUyNxEfsbZLiphvHsxkMGeaZTSedRZvIx0BBRQhj3CW2jeGv2YeOgKD7/exec"; 
         
         let weatherData = null;
@@ -156,18 +156,18 @@
         const btnPlay = document.getElementById('btn-play');
         const totalFramesText = document.getElementById('total-frames-text');
 
-        // Hàm gọi API và nạp chuỗi thời gian dữ liệu
+        // Hàm gọi API xử lý đồng bộ và kiểm tra kết nối mạng
         function initWeatherData() {
             fetch(GOOGLE_API_URL)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error("Không thể kết nối dịch vụ Web App.");
+                        throw new Error("Mạng lỗi hoặc URL triển khai chưa đúng");
                     }
                     return response.json();
                 })
                 .then(data => {
                     if (data.error) {
-                        timeText.innerText = "Lỗi: Chưa sinh được file json trên Drive";
+                        timeText.innerText = "Lỗi: Không tìm thấy file json trên Drive";
                         rainStatus.innerText = "Lỗi Drive";
                         rainStatus.className = "badge status-danger";
                         return;
@@ -180,7 +180,7 @@
                     slider.disabled = false;
                     btnPlay.disabled = false;
                     
-                    // Tự động cấu hình slider khớp hoàn toàn với tổng số khung giờ thực tế nhận được
+                    // Tự động cấu hình slider khớp hoàn toàn với tổng số khung giờ
                     slider.max = totalSteps - 1; 
                     totalFramesText.innerText = `Hạn dự báo: +${totalSteps} bước giờ`;
                     
@@ -188,8 +188,8 @@
                     updateWeatherDisplay(0);
                 })
                 .catch(error => {
-                    console.error("Chi tiết lỗi API:", error);
-                    timeText.innerText = "Lỗi kết nối API Google Drive hoặc lỗi CORS";
+                    console.error("Chi tiết lỗi kết nối:", error);
+                    timeText.innerText = "Lỗi kết nối API Google Drive (Kiểm tra Console log)";
                     rainStatus.innerText = "Mất kết nối";
                     rainStatus.className = "badge status-danger";
                 });
@@ -207,7 +207,7 @@
             timeText.innerText = `Thời gian: ${dateObj.toLocaleString('vi-VN')}`;
             rainText.innerText = `Lượng mưa: ${rainValue} mm/h`;
 
-            // Thuật toán so khớp dữ liệu: Cảnh báo sớm rủi ro dông lốc, ngập úng dựa trên lượng mưa
+            // Thuật toán so khớp dữ liệu để phát báo động màu sắc trên bản đồ
             if (rainValue === 0) {
                 rainStatus.innerText = "Không mưa";
                 rainStatus.className = "badge status-safe";
@@ -217,7 +217,6 @@
                 rainStatus.className = "badge status-warning";
                 updateLayerColors("#e67e22", `Mưa nhỏ (${rainValue} mm/h). Cần theo dõi hiện trạng cây xanh.`);
             } else {
-                // Khi lượng mưa vượt ngưỡng, phát báo động đỏ trên WebGIS
                 rainStatus.innerText = "MƯA LỚN - NGUY CƠ DÔNG LỐC";
                 rainStatus.className = "badge status-danger";
                 updateLayerColors("#e74c3c", `CẢNH BÁO NGUY HIỂM: Mưa lớn (${rainValue} mm/h). Nguy cơ dông lốc làm gãy đổ cây cổ thụ!`);
